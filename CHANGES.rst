@@ -1,6 +1,16 @@
 0.5 (unreleased)
 ----------------
 
+0.4.1 (2017-03-24)
+------------------
+
+- Astropy 3 compatibility fixes [#352] [#351]
+
+- Allow scalars in ``observability_table`` [#350]
+
+- Supporting empty target list on ``plot_airmass`` [#349]
+
+- Update astropy helpers [#346]
 
 0.4 (2017-10-23)
 ----------------
