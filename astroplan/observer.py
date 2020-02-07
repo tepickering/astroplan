@@ -48,7 +48,7 @@ sys.modules[__name__] = deprecation_wrap_module(sys.modules[__name__],
                                                 deprecated=['MAGIC_TIME'])
 
 
-def _generate_24hr_grid(t0, start, end, n_grid_points, for_deriv=False):
+def _generate_time_grid(t0, start, end, n_grid_points, for_deriv=False):
     """
     Generate a nearly linearly spaced grid of time durations.
 
@@ -787,7 +787,7 @@ class Observer(object):
                            if hasattr(target, 'approx_sidereal_drift') else 0))
             end = 0
 
-        times = _generate_24hr_grid(time, start, end, n_grid_points)
+        times = _generate_time_grid(time, start, end, n_grid_points)
 
         if target is MoonFlag:
             altaz = self.altaz(times, get_moon(times, location=self.location),
@@ -850,10 +850,10 @@ class Observer(object):
             time = Time(time)
 
         if prev_next == 'next':
-            times = _generate_24hr_grid(time, 0, 1, n_grid_points,
+            times = _generate_time_grid(time, 0, 1, n_grid_points,
                                         for_deriv=True)
         else:
-            times = _generate_24hr_grid(time, -1, 0, n_grid_points,
+            times = _generate_time_grid(time, -1, 0, n_grid_points,
                                         for_deriv=True)
 
         # The derivative of the altitude with respect to time is increasing
