@@ -27,6 +27,8 @@ __all__ = ["Observer"]
 
 MAGIC_TIME = Time(-999, format='jd')
 
+# Default size for time grids. This is sufficient for precision better than a minute for a 24-hour time grid.
+DEFAULT_NGRID = 150
 
 # Handle deprecated MAGIC_TIME variable
 def deprecation_wrap_module(mod, deprecated):
@@ -569,7 +571,7 @@ class Observer(object):
         -------
         Returns the lower and upper limits on the time and altitudes
         of the horizon crossing. The altitude limits have shape (M, ...) and the
-        time limits have shape (...). These arrays aresuitable for interpolation
+        time limits have shape (...). These arrays are suitable for interpolation
         to find the horizon crossing time.
         """
         # handle different cases by enforcing standard shapes on
@@ -733,7 +735,7 @@ class Observer(object):
         return alt
 
     def _calc_riseset(self, time, target, prev_next, rise_set, horizon,
-                      n_grid_points=150, grid_times_targets=False):
+                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False):
         """
         Time at next rise/set of ``target``.
 
@@ -807,7 +809,7 @@ class Observer(object):
                                       horizon=horizon)
 
     def _calc_transit(self, time, target, prev_next, antitransit=False,
-                      n_grid_points=150, grid_times_targets=False):
+                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False):
         """
         Time at next transit of the meridian of `target`.
 
@@ -893,7 +895,7 @@ class Observer(object):
         rise_set = args_dict.pop('rise_set', None)
         antitransit = args_dict.pop('antitransit', None)
         grid_times_targets = args_dict.pop('grid_times_targets', False)
-        n_grid_points = args_dict.pop('n_grid_points', 150)
+        n_grid_points = args_dict.pop('n_grid_points', DEFAULT_NGRID)
 
         # Assemble arguments for function, depending on the function.
         if function == self._calc_riseset:
@@ -944,7 +946,7 @@ class Observer(object):
 
     @u.quantity_input(horizon=u.deg)
     def target_rise_time(self, time, target, which='nearest',
-                         horizon=0*u.degree, grid_times_targets=False, n_grid_points=150):
+                         horizon=0*u.degree, grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
         """
         Calculate rise time.
 
@@ -981,7 +983,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
 
         Returns
@@ -1011,7 +1013,7 @@ class Observer(object):
 
     @u.quantity_input(horizon=u.deg)
     def target_set_time(self, time, target, which='nearest', horizon=0*u.degree,
-                        grid_times_targets=False, n_grid_points=150):
+                        grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
         """
         Calculate set time.
 
@@ -1047,7 +1049,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields set time precisions better than one minute.
 
         Returns
@@ -1077,7 +1079,7 @@ class Observer(object):
                                                 grid_times_targets=grid_times_targets))
 
     def target_meridian_transit_time(self, time, target, which='nearest',
-                                     grid_times_targets=False, n_grid_points=150):
+                                     grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
         """
         Calculate time at the transit of the meridian.
 
@@ -1107,7 +1109,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
 
         Returns
@@ -1137,7 +1139,7 @@ class Observer(object):
                                                 grid_times_targets=grid_times_targets))
 
     def target_meridian_antitransit_time(self, time, target, which='nearest',
-                                         grid_times_targets=False, n_grid_points=150):
+                                         grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
         """
         Calculate time at the antitransit of the meridian.
 
@@ -1167,7 +1169,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
 
         Returns
@@ -1198,7 +1200,7 @@ class Observer(object):
                                                 grid_times_targets=grid_times_targets))
 
     @u.quantity_input(horizon=u.deg)
-    def sun_rise_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=150):
+    def sun_rise_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=DEFAULT_NGRID):
         """
         Time of sunrise.
 
@@ -1225,7 +1227,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
 
         Returns
@@ -1249,7 +1251,7 @@ class Observer(object):
                                      n_grid_points=n_grid_points)
 
     @u.quantity_input(horizon=u.deg)
-    def sun_set_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=150):
+    def sun_set_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=DEFAULT_NGRID):
         """
         Time of sunset.
 
@@ -1276,7 +1278,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields set time precisions better than one minute.
 
         Returns
@@ -1299,7 +1301,7 @@ class Observer(object):
         return self.target_set_time(time, get_sun(time), which, horizon,
                                     n_grid_points=n_grid_points)
 
-    def noon(self, time, which='nearest', n_grid_points=150):
+    def noon(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at solar noon.
 
@@ -1317,7 +1319,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields noon time precisions better than one minute.
 
         Returns
@@ -1328,7 +1330,7 @@ class Observer(object):
         return self.target_meridian_transit_time(time, get_sun(time), which,
                                                  n_grid_points=n_grid_points)
 
-    def midnight(self, time, which='nearest', n_grid_points=150):
+    def midnight(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at solar midnight.
 
@@ -1346,7 +1348,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields midnight time precisions better than one minute.
 
         Returns
@@ -1359,7 +1361,7 @@ class Observer(object):
 
     # Twilight convenience functions
 
-    def twilight_evening_astronomical(self, time, which='nearest', n_grid_points=150):
+    def twilight_evening_astronomical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at evening astronomical (-18 degree) twilight.
 
@@ -1377,7 +1379,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields twilight time precisions better than one minute.
 
         Returns
@@ -1388,7 +1390,7 @@ class Observer(object):
         return self.sun_set_time(time, which, horizon=-18*u.degree,
                                  n_grid_points=n_grid_points)
 
-    def twilight_evening_nautical(self, time, which='nearest', n_grid_points=150):
+    def twilight_evening_nautical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at evening nautical (-12 degree) twilight.
 
@@ -1406,7 +1408,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields twilight time precisions better than one minute.
 
         Returns
@@ -1417,7 +1419,7 @@ class Observer(object):
         return self.sun_set_time(time, which, horizon=-12*u.degree,
                                  n_grid_points=n_grid_points)
 
-    def twilight_evening_civil(self, time, which='nearest', n_grid_points=150):
+    def twilight_evening_civil(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at evening civil (-6 degree) twilight.
 
@@ -1435,7 +1437,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields twilight time precisions better than one minute.
 
         Returns
@@ -1446,7 +1448,7 @@ class Observer(object):
         return self.sun_set_time(time, which, horizon=-6*u.degree,
                                  n_grid_points=n_grid_points)
 
-    def twilight_morning_astronomical(self, time, which='nearest', n_grid_points=150):
+    def twilight_morning_astronomical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at morning astronomical (-18 degree) twilight.
 
@@ -1464,7 +1466,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields twilight time precisions better than one minute.
 
         Returns
@@ -1475,7 +1477,7 @@ class Observer(object):
         return self.sun_rise_time(time, which, horizon=-18*u.degree,
                                   n_grid_points=n_grid_points)
 
-    def twilight_morning_nautical(self, time, which='nearest', n_grid_points=150):
+    def twilight_morning_nautical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at morning nautical (-12 degree) twilight.
 
@@ -1493,7 +1495,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields twilight time precisions better than one minute.
 
         Returns
@@ -1504,7 +1506,7 @@ class Observer(object):
         return self.sun_rise_time(time, which, horizon=-12*u.degree,
                                   n_grid_points=n_grid_points)
 
-    def twilight_morning_civil(self, time, which='nearest', n_grid_points=150):
+    def twilight_morning_civil(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
         """
         Time at morning civil (-6 degree) twilight.
 
@@ -1522,7 +1524,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields twilight time precisions better than one minute.
 
         Returns
@@ -1535,7 +1537,7 @@ class Observer(object):
 
     # Moon-related methods.
 
-    def moon_rise_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=150):
+    def moon_rise_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=DEFAULT_NGRID):
         """
         Returns the local moon rise time.
 
@@ -1562,13 +1564,13 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
         """
         return self.target_rise_time(time, MoonFlag, which, horizon,
                                      n_grid_points=n_grid_points)
 
-    def moon_set_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=150):
+    def moon_set_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=DEFAULT_NGRID):
         """
         Returns the local moon set time.
 
@@ -1595,7 +1597,7 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is 150 which
+            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields set time precisions better than one minute.
         """
         return self.target_set_time(time, MoonFlag, which, horizon,
