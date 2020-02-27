@@ -817,7 +817,7 @@ class Observer(object):
                                       horizon=horizon)
 
     def _calc_transit(self, time, target, prev_next, antitransit=False,
-                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False):
+                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False, tolerance=5 * u.minute):
         """
         Time at next transit of the meridian of `target`.
 
@@ -873,20 +873,28 @@ class Observer(object):
         else:
             rise_set = 'setting'
 
-        altaz = self.altaz(times, target, grid_times_targets=grid_times_targets)
-        altitudes = altaz.alt
-        if altitudes.ndim > 2:
-            # shape is (M, N, ...) where M is targets and N is grid
-            d_altitudes = altitudes.diff(axis=1)
-        else:
-            # shape is (N, M) where M is targets and N is grid
-            d_altitudes = altitudes.diff(axis=0)
+        while True:
+            altaz = self.altaz(times, target, grid_times_targets=grid_times_targets)
+            altitudes = altaz.alt
+            if altitudes.ndim > 2:
+                # shape is (M, N, ...) where M is targets and N is grid
+                d_altitudes = altitudes.diff(axis=1)
+            else:
+                # shape is (N, M) where M is targets and N is grid
+                d_altitudes = altitudes.diff(axis=0)
 
-        dt = Time((times.jd[1:] + times.jd[:-1])/2, format='jd')
+            dt = Time((times.jd[1:] + times.jd[:-1])/2, format='jd')
 
-        horizon = 0*u.degree  # Find when derivative passes through zero
-        al1, al2, jd1, jd2 = self._horiz_cross(dt, d_altitudes,
-                                               rise_set, horizon)
+            horizon = 0*u.degree  # Find when derivative passes through zero
+            al1, al2, jd1, jd2 = self._horiz_cross(dt, d_altitudes,
+                                                rise_set, horizon)
+            spacing = (jd2[0] - jd1[0]) * u.day
+            if spacing > tolerance:
+                newtime = Time(jd1[0], format='jd')
+                times = _generate_time_grid(newtime, 0, spacing.value, n_grid_points)
+            else:
+                break
+
         return self._two_point_interp(jd1, jd2, al1, al2,
                                       horizon=horizon)
 
