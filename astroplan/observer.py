@@ -28,7 +28,7 @@ __all__ = ["Observer"]
 MAGIC_TIME = Time(-999, format='jd')
 
 # Default size for time grids. This is sufficient for precision better than a minute for a 24-hour time grid.
-DEFAULT_NGRID = 150
+DEFAULT_NGRID = 12
 
 # Handle deprecated MAGIC_TIME variable
 def deprecation_wrap_module(mod, deprecated):
@@ -735,7 +735,7 @@ class Observer(object):
         return alt
 
     def _calc_riseset(self, time, target, prev_next, rise_set, horizon,
-                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False):
+                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False, tolerance=5 * u.minute):
         """
         Time at next rise/set of ``target``.
 
@@ -791,20 +791,28 @@ class Observer(object):
 
         times = _generate_time_grid(time, start, end, n_grid_points)
 
-        if target is MoonFlag:
-            altaz = self.altaz(times, get_moon(times, location=self.location),
-                               grid_times_targets=grid_times_targets)
-        elif target is SunFlag:
-            altaz = self.altaz(times, get_sun(times),
-                               grid_times_targets=grid_times_targets)
-        else:
-            altaz = self.altaz(times, target,
-                               grid_times_targets=grid_times_targets)
+        while True:
+            if target is MoonFlag:
+                altaz = self.altaz(times, get_moon(times, location=self.location),
+                                grid_times_targets=grid_times_targets)
+            elif target is SunFlag:
+                altaz = self.altaz(times, get_sun(times),
+                                grid_times_targets=grid_times_targets)
+            else:
+                altaz = self.altaz(times, target,
+                                grid_times_targets=grid_times_targets)
 
-        altitudes = altaz.alt
+            altitudes = altaz.alt
 
-        al1, al2, jd1, jd2 = self._horiz_cross(times, altitudes, rise_set,
-                                               horizon)
+            al1, al2, jd1, jd2 = self._horiz_cross(times, altitudes, rise_set,
+                                                horizon)
+            spacing = (jd2[0] - jd1[0]) * u.day
+            if spacing > tolerance:
+                newtime = Time(jd1[0], format='jd')
+                times = _generate_time_grid(newtime, 0, spacing.value, n_grid_points)
+            else:
+                break
+
         return self._two_point_interp(jd1, jd2, al1, al2,
                                       horizon=horizon)
 
