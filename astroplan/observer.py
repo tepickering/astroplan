@@ -28,7 +28,7 @@ __all__ = ["Observer"]
 MAGIC_TIME = Time(-999, format='jd')
 
 # Default size for time grids. This is sufficient for precision better than a minute for a 24-hour time grid.
-DEFAULT_NGRID = 12
+DEFAULT_NGRID = 150
 
 # Handle deprecated MAGIC_TIME variable
 def deprecation_wrap_module(mod, deprecated):
@@ -735,7 +735,8 @@ class Observer(object):
         return alt
 
     def _calc_riseset(self, time, target, prev_next, rise_set, horizon,
-                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False, tolerance=5 * u.minute):
+                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False,
+                      tolerance=10 * u.minute, iterative=False):
         """
         Time at next rise/set of ``target``.
 
@@ -804,11 +805,21 @@ class Observer(object):
 
             altitudes = altaz.alt
 
-            al1, al2, jd1, jd2 = self._horiz_cross(times, altitudes, rise_set,
-                                                horizon)
+            al1, al2, jd1, jd2 = self._horiz_cross(times, altitudes, rise_set, horizon)
+
+            # If not in iterative mode, break out after one calculation with the full grid.
+            if not iterative:
+                break
+
+            # Bail if the times are np.nan which means there is no horizon crossing.
+            if np.all(np.isnan(jd1)) or np.all(np.isnan(jd2)):
+                break
+
             spacing = (jd2[0] - jd1[0]) * u.day
+
+            # Generate new time grid within the transition time range and recalculate...
             if spacing > tolerance:
-                newtime = Time(jd1[0], format='jd')
+                newtime = Time(jd1, format='jd')
                 times = _generate_time_grid(newtime, 0, spacing.value, n_grid_points)
             else:
                 break
@@ -817,7 +828,8 @@ class Observer(object):
                                       horizon=horizon)
 
     def _calc_transit(self, time, target, prev_next, antitransit=False,
-                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False, tolerance=5 * u.minute):
+                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False,
+                      tolerance=10 * u.minute, iterative=False):
         """
         Time at next transit of the meridian of `target`.
 
@@ -883,14 +895,25 @@ class Observer(object):
                 # shape is (N, M) where M is targets and N is grid
                 d_altitudes = altitudes.diff(axis=0)
 
+            # This manipulation requires n_grid_points to be an even number
             dt = Time((times.jd[1:] + times.jd[:-1])/2, format='jd')
 
-            horizon = 0*u.degree  # Find when derivative passes through zero
-            al1, al2, jd1, jd2 = self._horiz_cross(dt, d_altitudes,
-                                                rise_set, horizon)
+            horizon = 0 * u.degree  # Find when derivative passes through zero
+            al1, al2, jd1, jd2 = self._horiz_cross(dt, d_altitudes, rise_set, horizon)
+
+            # If not in iterative mode, break out after one calculation with the full grid.
+            if not iterative:
+                break
+
+            # Bail if the times are np.nan which means there is no horizon crossing.
+            if np.all(np.isnan(jd1)) or np.all(np.isnan(jd2)):
+                break
+
             spacing = (jd2[0] - jd1[0]) * u.day
+
+            # Generate new time grid within the transition time range and recalculate...
             if spacing > tolerance:
-                newtime = Time(jd1[0], format='jd')
+                newtime = Time(jd1, format='jd')
                 times = _generate_time_grid(newtime, 0, spacing.value, n_grid_points)
             else:
                 break
@@ -913,17 +936,32 @@ class Observer(object):
         grid_times_targets = args_dict.pop('grid_times_targets', False)
         n_grid_points = args_dict.pop('n_grid_points', DEFAULT_NGRID)
 
+        # If there's only one target, we can calculate horizon crossing much more quickly and accurately
+        # via an iterative approach. Starting with a grid size of 14 nets the same resolution as a full grid
+        # of 196 around the time of the transition after only 2 iterations. For batches of targets the large
+        # grid approach is more efficient.
+        iterative = True
+        if grid_times_targets:
+            iterative = False
+        if hasattr(target, '__len__'):
+            if not hasattr(target, 'isscalar'):
+                if len(target) > 1:
+                    iterative = False
+
+        if iterative:
+            n_grid_points = 14  # this needs to be an even number
+
         # Assemble arguments for function, depending on the function.
         if function == self._calc_riseset:
             def event_function(w):
                 return function(time, target, w, rise_set, horizon,
                                 grid_times_targets=grid_times_targets,
-                                n_grid_points=n_grid_points)
+                                n_grid_points=n_grid_points, iterative=iterative)
         elif function == self._calc_transit:
             def event_function(w):
                 return function(time, target, w, antitransit=antitransit,
                                 grid_times_targets=grid_times_targets,
-                                n_grid_points=n_grid_points)
+                                n_grid_points=n_grid_points, iterative=iterative)
         else:
             raise ValueError('Function {} not supported in '
                              '_determine_which_event.'.format(function))
