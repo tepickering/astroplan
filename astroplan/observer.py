@@ -895,7 +895,6 @@ class Observer(object):
                 # shape is (N, M) where M is targets and N is grid
                 d_altitudes = altitudes.diff(axis=0)
 
-            # This manipulation requires n_grid_points to be an even number
             dt = Time((times.jd[1:] + times.jd[:-1])/2, format='jd')
 
             horizon = 0 * u.degree  # Find when derivative passes through zero
@@ -914,7 +913,7 @@ class Observer(object):
             # Generate new time grid within the transition time range and recalculate...
             if spacing > tolerance:
                 newtime = Time(jd1, format='jd')
-                times = _generate_time_grid(newtime, 0, spacing.value, n_grid_points)
+                times = _generate_time_grid(newtime, 0, spacing.value, n_grid_points, for_deriv=True)
             else:
                 break
 
@@ -949,7 +948,7 @@ class Observer(object):
                     iterative = False
 
         if iterative:
-            n_grid_points = 14  # this needs to be an even number
+            n_grid_points = 15
 
         # Assemble arguments for function, depending on the function.
         if function == self._calc_riseset:
