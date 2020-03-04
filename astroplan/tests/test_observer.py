@@ -165,9 +165,16 @@ def test_rise_set_transit_nearest_vector():
     sirius_rise = obs.target_rise_time(time, sirius)
     polaris_rise = obs.target_rise_time(time, polaris)
 
-    assert rise_vector[0] == vega_rise
-    assert rise_vector[1] == mira_rise
-    assert rise_vector[2] == sirius_rise
+    # Scalar solutions use an iterative grid to achieve higher resolution near
+    # transitions with fewer calculations. Thus the results won't match exactly,
+    # but should agree to within 10 seconds or so.
+    threshold_seconds = 10
+    assert (abs(rise_vector[0] - vega_rise) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(rise_vector[1] - mira_rise) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(rise_vector[2] - sirius_rise) <
+            datetime.timedelta(seconds=threshold_seconds))
     assert rise_vector[3].value.mask and polaris_rise.value.mask
 
     set_vector = obs.target_set_time(time, sc_list)
@@ -176,9 +183,12 @@ def test_rise_set_transit_nearest_vector():
     sirius_set = obs.target_set_time(time, sirius)
     polaris_set = obs.target_set_time(time, polaris)
 
-    assert set_vector[0] == vega_set
-    assert set_vector[1] == mira_set
-    assert set_vector[2] == sirius_set
+    assert (abs(set_vector[0] - vega_set) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(set_vector[1] - mira_set) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(set_vector[2] - sirius_set) <
+            datetime.timedelta(seconds=threshold_seconds))
     assert set_vector[3].value.mask and polaris_set.value.mask
 
     transit_vector = obs.target_meridian_transit_time(time, sc_list)
@@ -187,10 +197,14 @@ def test_rise_set_transit_nearest_vector():
     sirius_trans = obs.target_meridian_transit_time(time, sirius)
     polaris_trans = obs.target_meridian_transit_time(time, polaris)
 
-    assert transit_vector[0] == vega_trans
-    assert transit_vector[1] == mira_trans
-    assert transit_vector[2] == sirius_trans
-    assert transit_vector[3] == polaris_trans
+    assert (abs(transit_vector[0] - vega_trans) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(transit_vector[1] - mira_trans) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(transit_vector[2] - sirius_trans) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(transit_vector[3] - polaris_trans) <
+            datetime.timedelta(seconds=threshold_seconds))
 
 
 def print_pyephem_altaz(latitude, longitude, elevation, time, pressure,
@@ -501,11 +515,19 @@ def test_vega_sirius_rise_set_seattle():
     assert (abs(pyephem_sirius_set - astroplan_sirius_set) <
             datetime.timedelta(minutes=threshold_minutes))
 
-    # Now check vectorized solutions against scalar:
-    assert (astroplan_vector_rise[0] == astroplan_vega_rise)
-    assert (astroplan_vector_rise[1] == astroplan_sirius_rise)
-    assert (astroplan_vector_set[0] == astroplan_vega_set)
-    assert (astroplan_vector_set[1] == astroplan_sirius_set)
+    threshold_seconds = 10
+    # Now check vectorized solutions against scalar. Scalar solutions use an iterative grid to get higher
+    # resolution near transitions with fewer calculations. Thus the results won't match exactly,
+    # but should agree within 10 seconds or so.
+    assert (abs(astroplan_vector_rise[0] - astroplan_vega_rise) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(astroplan_vector_rise[1] - astroplan_sirius_rise) <
+            datetime.timedelta(seconds=threshold_seconds))
+
+    assert (abs(astroplan_vector_set[0] - astroplan_vega_set) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(astroplan_vector_set[1] - astroplan_sirius_set) <
+            datetime.timedelta(seconds=threshold_seconds))
 
 
 def print_pyephem_vega_sirius_rise_set():
@@ -879,9 +901,14 @@ def test_vega_sirius_transit_seattle():
     assert (abs(pyephem_sirius_transit - astroplan_sirius_transit) <
             datetime.timedelta(minutes=threshold_minutes))
 
-    # Now check vectorized solutions against scalar:
-    assert (astroplan_vector_transit[0] == astroplan_vega_transit)
-    assert (astroplan_vector_transit[1] == astroplan_sirius_transit)
+    # Now check vectorized solutions against scalar. Scalar solutions use an iterative grid
+    # to achieve higher time resolution with fewer calculations. Thus the solutions will differ,
+    # but the difference should be less than 10 seconds.
+    threshold_seconds = 10
+    assert (abs(astroplan_vector_transit[0] - astroplan_vega_transit) <
+            datetime.timedelta(seconds=threshold_seconds))
+    assert (abs(astroplan_vector_transit[1] - astroplan_sirius_transit) <
+            datetime.timedelta(seconds=threshold_seconds))
 
 
 def print_pyephem_vega_sirius_transit():
