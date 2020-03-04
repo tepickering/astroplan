@@ -734,6 +734,39 @@ class Observer(object):
                         np.cos(LST.radian - target.ra.radian))
         return alt
 
+    def _is_circumpolar(self, dec, horizon=0*u.deg):
+        """
+        Check if declination, dec, is circumpolar at the current location.
+
+        Parameters
+        ----------
+        dec : `~astropy.units.Quantity`
+            Declination of target to check.
+
+        horizon : `~astropy.units.Quantity`
+            Angle above/below horizon to use for determining circumpolarity.
+
+        Returns
+        -------
+        circumpolar : bool
+            True if circumpolar and always up, False otherwise.
+        """
+        circumpolar = False
+        if self.location.lat > 0 * u.deg:
+            if dec.min() > 90 * u.deg - (self.location.lat + horizon):
+                circumpolar = True
+        if self.location.lat < 0 * u.deg:
+            if dec.max() < -90 * u.deg - (self.location.lat - horizon):
+                circumpolar = True
+        if circumpolar:
+            warnmsg = "Target with declination {} is circumpolar at latitude {} with horizon at {}.".format(
+                dec,
+                self.location.lat,
+                horizon
+            )
+            warnings.warn(warnmsg, TargetAlwaysUpWarning)
+        return circumpolar
+
     def _calc_riseset(self, time, target, prev_next, rise_set, horizon,
                       n_grid_points=DEFAULT_NGRID, grid_times_targets=False,
                       tolerance=10 * u.minute, iterative=False):
@@ -789,6 +822,56 @@ class Observer(object):
             start = (-1 - (target.approx_sidereal_drift.to(u.day).value
                            if hasattr(target, 'approx_sidereal_drift') else 0))
             end = 0
+
+        # If we're in single-target iterative mode, we need to check if the target is always available,
+        # never available, or close enough to either case to require the full grid.
+        if iterative:
+            check_times = _generate_time_grid(time, -1, 1, 3)  # Check declination range for sun/moon for day before/after
+            if target is MoonFlag:
+                moon = get_moon(check_times, location=self.location)
+                dec = moon.dec
+            elif target is SunFlag:
+                sun = get_sun(check_times, location=self.location)
+                dec = sun.dec
+            else:
+                dec = target.dec
+
+            if self._is_circumpolar(dec, horizon=horizon):  # Circumpolar
+                times = Time([0], format='jd')
+                times[0] = np.ma.masked
+                return times
+            if self.location.lat > 0 * u.deg:  # Northern hemisphere
+                south_limit = self.location.lat - 90 * u.deg + horizon
+                if dec.max() < south_limit:
+                    warnmsg = "Target with declination {} does not appear the above horizon of {} at latitude {}.".format(
+                        dec.max(),
+                        horizon,
+                        self.location.lat
+                    )
+                    warnings.warn(warnmsg, TargetNeverUpWarning)
+                    times = Time([0], format='jd')
+                    times[0] = np.ma.masked
+                    return times
+                if dec.max() >= south_limit and dec.max() < south_limit + 5 * u.deg:
+                    # If target never exceeds 5 degrees elevation, use the full grid to be safe.
+                    iterative = False
+                    n_grid_points = DEFAULT_NGRID
+            if self.location.lat < 0 * u.deg:  # Southern hemisphere
+                north_limit = self.location.lat + 90 * u.deg - horizon
+                if dec.min() > north_limit:
+                    warnmsg = "Target with declination {} does not appear the above horizon of {} at latitude {}.".format(
+                        dec.max(),
+                        horizon,
+                        self.location.lat
+                    )
+                    warnings.warn(warnmsg, TargetNeverUpWarning)
+                    times = Time([0], format='jd')
+                    times[0] = np.ma.masked
+                    return times
+                if dec.min() <= north_limit and dec.min() > north_limit - 5 * u.deg:
+                    # If target never exceeds 5 degrees elevation, use the full grid to be safe.
+                    iterative = False
+                    n_grid_points = DEFAULT_NGRID
 
         times = _generate_time_grid(time, start, end, n_grid_points)
 
@@ -870,6 +953,14 @@ class Observer(object):
         # TODO FIX BROADCASTING HERE
         if not isinstance(time, Time):
             time = Time(time)
+
+        # For object too close to the pole, the starting grid in iterative mode is too coarse.
+        # Force a full grid to be used for targets within 5 degrees of a pole.
+        if iterative:
+            if target is not MoonFlag and target is not SunFlag:
+                if np.min(np.abs(target.dec)) > 85 * u.deg:
+                    iterative = False
+                    n_grid_points = DEFAULT_NGRID
 
         if prev_next == 'next':
             times = _generate_time_grid(time, 0, 1, n_grid_points,
