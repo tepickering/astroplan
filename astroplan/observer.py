@@ -80,12 +80,17 @@ def _generate_time_grid(t0, start, end, n_grid_points, for_deriv=False):
     -------
     `~astropy.time.Time`
     """
-
     if for_deriv:
-        time_grid = np.concatenate([[start - 1 / (n_grid_points - 1)],
-                                    np.linspace(start, end,
-                                                n_grid_points)[1:-1],
-                                    [end + 1 / (n_grid_points - 1)]]) * u.day
+        main_grid = np.linspace(start, end, n_grid_points)
+        # Pad the time_grid slightly so the np.diff() correctly spans the desired time range.
+        time_delta = (10 * u.second).to(u.day).value  # 10 seconds
+        time_grid = np.concatenate(
+            [
+                [start - time_delta],
+                np.linspace(start, end, n_grid_points),
+                [end + time_delta],
+            ]
+        ) * u.day
     else:
         time_grid = np.linspace(start, end, n_grid_points) * u.day
 
@@ -578,7 +583,7 @@ class Observer(object):
         # the altitude grid
         finesse_time_indexes = False
         if alt.ndim == 1:
-            raise ValueError('Must supply more at least a 2D grid of altitudes')
+            raise ValueError('Must supply at least a 2D grid of altitudes')
         elif alt.ndim == 2:
             # TODO: this test for ndim=2 doesn't work. if times is e.g (2,5)
             # then alt will have ndim=3, but shape (100, 2, 5) so grid
@@ -633,6 +638,7 @@ class Observer(object):
         # slice the time in the same way, but delete the object index
         before_time_index_tuple = np.delete(before_indices, 0, 0)
         after_time_index_tuple = np.delete(after_indices, 0, 0)
+
         if finesse_time_indexes:
             before_time_index_tuple[1:] = 0
             after_time_index_tuple[1:] = 0
@@ -640,9 +646,9 @@ class Observer(object):
         tl2 = t[tuple(after_time_index_tuple)]
 
         alt_lims1[tuple(np.delete(before_indices, 1, 0))] = al1
-        alt_lims2[tuple(np.delete(before_indices, 1, 0))] = al2
+        alt_lims2[tuple(np.delete(after_indices, 1, 0))] = al2
         jd_lims1[tuple(np.delete(before_indices, 1, 0))] = tl1.utc.jd
-        jd_lims2[tuple(np.delete(before_indices, 1, 0))] = tl2.utc.jd
+        jd_lims2[tuple(np.delete(after_indices, 1, 0))] = tl2.utc.jd
 
         if extra_dimension_added:
             return (alt_lims1.diagonal(), alt_lims2.diagonal(),
@@ -697,8 +703,8 @@ class Observer(object):
         times = Time(crossing_jd, format='jd')
         # Create a Time object with masked out times where there were NaNs
         times[nans] = np.ma.masked
-
-        return np.squeeze(times)
+        times = np.squeeze(times)
+        return times
 
     def _altitude_trig(self, LST, target, grid_times_targets=False):
         """
@@ -987,7 +993,6 @@ class Observer(object):
                 d_altitudes = altitudes.diff(axis=0)
 
             dt = Time((times.jd[1:] + times.jd[:-1])/2, format='jd')
-
             horizon = 0 * u.degree  # Find when derivative passes through zero
             al1, al2, jd1, jd2 = self._horiz_cross(dt, d_altitudes, rise_set, horizon)
 
