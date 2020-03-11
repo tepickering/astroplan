@@ -27,8 +27,10 @@ __all__ = ["Observer"]
 
 MAGIC_TIME = Time(-999, format='jd')
 
-# Default size for time grids. This is sufficient for precision better than a minute for a 24-hour time grid.
+# Default size for time grids. This is sufficient for precision better than a
+# minute for a 24-hour time grid.
 DEFAULT_NGRID = 150
+
 
 # Handle deprecated MAGIC_TIME variable
 def deprecation_wrap_module(mod, deprecated):
@@ -81,7 +83,6 @@ def _generate_time_grid(t0, start, end, n_grid_points, for_deriv=False):
     `~astropy.time.Time`
     """
     if for_deriv:
-        main_grid = np.linspace(start, end, n_grid_points)
         # Pad the time_grid slightly so the np.diff() correctly spans the desired time range.
         time_delta = (10 * u.second).to(u.day).value  # 10 seconds
         time_grid = np.concatenate(
@@ -765,11 +766,8 @@ class Observer(object):
             if dec.max() < -90 * u.deg - (self.location.lat - horizon):
                 circumpolar = True
         if circumpolar:
-            warnmsg = "Target with declination {} is circumpolar at latitude {} with horizon at {}.".format(
-                dec,
-                self.location.lat,
-                horizon
-            )
+            warnmsg = ('Target with declination {} is circumpolar at latitude {} '
+                       'with horizon at {}.'.format(dec, self.location.lat, horizon))
             warnings.warn(warnmsg, TargetAlwaysUpWarning)
         return circumpolar
 
@@ -829,10 +827,11 @@ class Observer(object):
                            if hasattr(target, 'approx_sidereal_drift') else 0))
             end = 0
 
-        # If we're in single-target iterative mode, we need to check if the target is always available,
-        # never available, or close enough to either case to require the full grid.
+        # If we're in single-target iterative mode, we need to check if the target is always
+        # available, never available, or close enough to either case to require the full grid.
         if iterative:
-            check_times = _generate_time_grid(time, -1, 1, 3)  # Check declination range for sun/moon for day before/after
+            # Check declination range for sun/moon for day before/after
+            check_times = _generate_time_grid(time, -1, 1, 3)
             if target is MoonFlag:
                 moon = get_moon(check_times, location=self.location)
                 dec = moon.dec
@@ -849,11 +848,8 @@ class Observer(object):
             if self.location.lat > 0 * u.deg:  # Northern hemisphere
                 south_limit = self.location.lat - 90 * u.deg + horizon
                 if dec.max() < south_limit:
-                    warnmsg = "Target with declination {} does not appear the above horizon of {} at latitude {}.".format(
-                        dec.max(),
-                        horizon,
-                        self.location.lat
-                    )
+                    warnmsg = ('Target with declination {} does not appear the above horizon of '
+                               '{} at latitude {}.'.format(dec.max(), horizon, self.location.lat))
                     warnings.warn(warnmsg, TargetNeverUpWarning)
                     times = Time([0], format='jd')
                     times[0] = np.ma.masked
@@ -865,11 +861,8 @@ class Observer(object):
             if self.location.lat < 0 * u.deg:  # Southern hemisphere
                 north_limit = self.location.lat + 90 * u.deg - horizon
                 if dec.min() > north_limit:
-                    warnmsg = "Target with declination {} does not appear the above horizon of {} at latitude {}.".format(
-                        dec.max(),
-                        horizon,
-                        self.location.lat
-                    )
+                    warnmsg = ('Target with declination {} does not appear the above horizon of '
+                               '{} at latitude {}.'.format(dec.max(), horizon, self.location.lat))
                     warnings.warn(warnmsg, TargetNeverUpWarning)
                     times = Time([0], format='jd')
                     times[0] = np.ma.masked
@@ -884,13 +877,13 @@ class Observer(object):
         while True:
             if target is MoonFlag:
                 altaz = self.altaz(times, get_moon(times, location=self.location),
-                                grid_times_targets=grid_times_targets)
+                                   grid_times_targets=grid_times_targets)
             elif target is SunFlag:
                 altaz = self.altaz(times, get_sun(times),
-                                grid_times_targets=grid_times_targets)
+                                   grid_times_targets=grid_times_targets)
             else:
                 altaz = self.altaz(times, target,
-                                grid_times_targets=grid_times_targets)
+                                   grid_times_targets=grid_times_targets)
 
             altitudes = altaz.alt
 
@@ -1009,7 +1002,13 @@ class Observer(object):
             # Generate new time grid within the transition time range and recalculate...
             if spacing > tolerance:
                 newtime = Time(jd1, format='jd')
-                times = _generate_time_grid(newtime, 0, spacing.value, n_grid_points, for_deriv=True)
+                times = _generate_time_grid(
+                    newtime,
+                    0,
+                    spacing.value,
+                    n_grid_points,
+                    for_deriv=True
+                )
             else:
                 break
 
@@ -1031,9 +1030,10 @@ class Observer(object):
         grid_times_targets = args_dict.pop('grid_times_targets', False)
         n_grid_points = args_dict.pop('n_grid_points', DEFAULT_NGRID)
 
-        # If there's only one target, we can calculate horizon crossing much more quickly and accurately
-        # via an iterative approach. Starting with a grid size of 14 nets the same resolution as a full grid
-        # of 196 around the time of the transition after only 2 iterations. For batches of targets the large
+        # If there's only one target, we can calculate horizon crossing much more
+        # quickly and accurately via an iterative approach. Starting with a grid
+        # size of 14 nets the same resolution as a full grid of 196 around the time
+        # of the transition after only 2 iterations. For batches of targets the large
         # grid approach is more efficient.
         iterative = True
         if grid_times_targets:

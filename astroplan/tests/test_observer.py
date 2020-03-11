@@ -515,9 +515,9 @@ def test_vega_sirius_rise_set_seattle():
     assert (abs(pyephem_sirius_set - astroplan_sirius_set) <
             datetime.timedelta(minutes=threshold_minutes))
 
-    # Now check vectorized solutions against scalar. Scalar solutions use an iterative grid to get higher
-    # resolution near transitions with fewer calculations. Thus the results won't match exactly,
-    # but should agree within 30 seconds or so.
+    # Now check vectorized solutions against scalar. Scalar solutions use an
+    # iterative grid to get higher resolution near transitions with fewer calculations.
+    # Thus the results won't match exactly, but should agree within 30 seconds or so.
     threshold_seconds = 30
     assert (abs(astroplan_vector_rise[0] - astroplan_vega_rise) <
             datetime.timedelta(seconds=threshold_seconds))
