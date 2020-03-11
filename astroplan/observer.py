@@ -31,6 +31,11 @@ MAGIC_TIME = Time(-999, format='jd')
 # minute for a 24-hour time grid.
 DEFAULT_NGRID = 150
 
+# Default initial size for interative time grids. Sufficient to achieve sub-minute
+# precision within 2 iterations in most cases, i.e. with 1/5 as many calculations
+# as a default non-interative grid.
+DEFAULT_ITERATIVE_NGRID = 15
+
 
 # Handle deprecated MAGIC_TIME variable
 def deprecation_wrap_module(mod, deprecated):
@@ -84,7 +89,7 @@ def _generate_time_grid(t0, start, end, n_grid_points, for_deriv=False):
     """
     if for_deriv:
         # Pad the time_grid slightly so the np.diff() correctly spans the desired time range.
-        time_delta = (10 * u.second).to(u.day).value  # 10 seconds
+        time_delta = (10 * u.second).to(u.day).value  # 10 seconds seems to be sufficient
         time_grid = np.concatenate(
             [
                 [start - time_delta],
@@ -954,12 +959,15 @@ class Observer(object):
             time = Time(time)
 
         # For object too close to the pole, the starting grid in iterative mode is too coarse.
-        # Force a full grid to be used for targets within 5 degrees of a pole.
+        # Force a full grid to be used for targets within 10 degrees of a pole.
         if iterative:
             if target is not MoonFlag and target is not SunFlag:
-                if np.min(np.abs(target.dec)) > 85 * u.deg:
-                    iterative = False
-                    n_grid_points = DEFAULT_NGRID
+                max_dec = np.max(np.abs(target.dec))
+                if max_dec > 80 * u.deg:
+                    # Do a simple hack to scale grid points as you approach the pole. Otherwise, the
+                    # precision drops pretty significantly as documented in issue #453. This is
+                    # especially true for the coarse default grid size in the iterative case.
+                    n_grid_points = int(round(DEFAULT_ITERATIVE_NGRID * (1 + max_dec.value - 80.)))
 
         if prev_next == 'next':
             times = _generate_time_grid(time, 0, 1, n_grid_points,
@@ -1044,7 +1052,7 @@ class Observer(object):
                     iterative = False
 
         if iterative:
-            n_grid_points = 15
+            n_grid_points = DEFAULT_ITERATIVE_NGRID
 
         # Assemble arguments for function, depending on the function.
         if function == self._calc_riseset:
