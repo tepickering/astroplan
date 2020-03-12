@@ -33,9 +33,13 @@ DEFAULT_NGRID = 150
 
 # Default initial size for interative time grids. Sufficient to achieve sub-minute
 # precision within 2 iterations in most cases, i.e. with 1/5 as many calculations
-# as a default non-interative grid.
+# as a default non-interative time grid.
 DEFAULT_ITERATIVE_NGRID = 15
 
+# Time grid spacing tolerance for iterative method, i.e. iterate until time grid
+# spacing is smaller than this. 10 minutes is sufficient in most cases to acheive
+# precision of better than a minute.
+DEFAULT_ITERATIVE_TOL = 10 * u.minute
 
 # Handle deprecated MAGIC_TIME variable
 def deprecation_wrap_module(mod, deprecated):
@@ -778,7 +782,7 @@ class Observer(object):
 
     def _calc_riseset(self, time, target, prev_next, rise_set, horizon,
                       n_grid_points=DEFAULT_NGRID, grid_times_targets=False,
-                      tolerance=10 * u.minute, iterative=False):
+                      iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at next rise/set of ``target``.
 
@@ -814,6 +818,18 @@ class Observer(object):
             the end, so that calculations with M targets and N times will
             return an (M, N) shaped result. Otherwise, we rely on broadcasting
             the shapes together using standard numpy rules.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -915,8 +931,8 @@ class Observer(object):
                                       horizon=horizon)
 
     def _calc_transit(self, time, target, prev_next, antitransit=False,
-                      n_grid_points=DEFAULT_NGRID, grid_times_targets=False,
-                      tolerance=10 * u.minute, iterative=False):
+                      n_grid_points=DEFAULT_ITERATIVE_NGRID, grid_times_targets=False,
+                      iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at next transit of the meridian of `target`.
 
@@ -935,7 +951,7 @@ class Observer(object):
         prev_next : str - either 'previous' or 'next'
             Test next rise/set or previous rise/set
 
-        antitransit : bool
+        antitransit : bool (optional)
             Toggle compute antitransit (below horizon, equivalent to midnight
             for the Sun)
 
@@ -943,11 +959,23 @@ class Observer(object):
             Number of altitudes to compute when searching for
             rise or set.
 
-        grid_times_targets: bool
+        grid_times_targets: bool (optional)
             If True, the target object will have extra dimensions packed onto
             the end, so that calculations with M targets and N times will
             return an (M, N) shaped result. Otherwise, we rely on broadcasting
             the shapes together using standard numpy rules.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -958,7 +986,7 @@ class Observer(object):
         if not isinstance(time, Time):
             time = Time(time)
 
-        # For object too close to the pole, the starting grid in iterative mode is too coarse.
+        # For objects close to the pole, the starting grid in iterative mode is too coarse.
         # Force a full grid to be used for targets within 10 degrees of a pole.
         if iterative:
             if target is not MoonFlag and target is not SunFlag:
@@ -967,7 +995,7 @@ class Observer(object):
                     # Do a simple hack to scale grid points as you approach the pole. Otherwise, the
                     # precision drops pretty significantly as documented in issue #453. This is
                     # especially true for the coarse default grid size in the iterative case.
-                    n_grid_points = int(round(DEFAULT_ITERATIVE_NGRID * (1 + max_dec.value - 80.)))
+                    n_grid_points = int(round(n_grid_points * (1 + max_dec.value - 80.)))
 
         if prev_next == 'next':
             times = _generate_time_grid(time, 0, 1, n_grid_points,
@@ -1036,14 +1064,15 @@ class Observer(object):
         rise_set = args_dict.pop('rise_set', None)
         antitransit = args_dict.pop('antitransit', None)
         grid_times_targets = args_dict.pop('grid_times_targets', False)
-        n_grid_points = args_dict.pop('n_grid_points', DEFAULT_NGRID)
+        iterative = args_dict.pop('iterative', True)
+        n_grid_points = args_dict.pop('n_grid_points', None)
+        tolerance = args_dict.pop('tolerance', DEFAULT_ITERATIVE_TOL)
 
         # If there's only one target, we can calculate horizon crossing much more
-        # quickly and accurately via an iterative approach. Starting with a grid
-        # size of 14 nets the same resolution as a full grid of 196 around the time
-        # of the transition after only 2 iterations. For batches of targets the large
-        # grid approach is more efficient.
-        iterative = True
+        # quickly and accurately via an iterative approach. For batches of more than
+        # 5 or so targets, the large grid approach is more efficient. The iterative
+        # method currently only supports single targets. If there are multiple targets,
+        # revert to the single grid method.
         if grid_times_targets:
             iterative = False
         if hasattr(target, '__len__'):
@@ -1051,20 +1080,25 @@ class Observer(object):
                 if len(target) > 1:
                     iterative = False
 
-        if iterative:
-            n_grid_points = DEFAULT_ITERATIVE_NGRID
+        if n_grid_points is None:
+            if iterative:
+                n_grid_points = DEFAULT_ITERATIVE_NGRID
+            else:
+                n_grid_points = DEFAULT_NGRID
 
         # Assemble arguments for function, depending on the function.
         if function == self._calc_riseset:
             def event_function(w):
                 return function(time, target, w, rise_set, horizon,
                                 grid_times_targets=grid_times_targets,
-                                n_grid_points=n_grid_points, iterative=iterative)
+                                n_grid_points=n_grid_points,
+                                tolerance=tolerance, iterative=iterative)
         elif function == self._calc_transit:
             def event_function(w):
                 return function(time, target, w, antitransit=antitransit,
                                 grid_times_targets=grid_times_targets,
-                                n_grid_points=n_grid_points, iterative=iterative)
+                                n_grid_points=n_grid_points,
+                                tolerance=tolerance, iterative=iterative)
         else:
             raise ValueError('Function {} not supported in '
                              '_determine_which_event.'.format(function))
@@ -1103,7 +1137,8 @@ class Observer(object):
 
     @u.quantity_input(horizon=u.deg)
     def target_rise_time(self, time, target, which='nearest',
-                         horizon=0*u.degree, grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
+                         horizon=0*u.degree, grid_times_targets=False, n_grid_points=None,
+                         iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Calculate rise time.
 
@@ -1140,8 +1175,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields rise time precisions better than one minute.
+            crossings of the target over a 24 hour period, the default values
+            yield rise time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1166,11 +1213,14 @@ class Observer(object):
                                                 which=which, rise_set='rising',
                                                 horizon=horizon,
                                                 n_grid_points=n_grid_points,
-                                                grid_times_targets=grid_times_targets))
+                                                grid_times_targets=grid_times_targets,
+                                                iterative=iterative,
+                                                tolerance=tolerance))
 
     @u.quantity_input(horizon=u.deg)
     def target_set_time(self, time, target, which='nearest', horizon=0*u.degree,
-                        grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
+                        grid_times_targets=False, n_grid_points=None,
+                        iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Calculate set time.
 
@@ -1209,6 +1259,18 @@ class Observer(object):
             crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields set time precisions better than one minute.
 
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
+
         Returns
         -------
         `~astropy.time.Time`
@@ -1233,10 +1295,13 @@ class Observer(object):
                                                 rise_set='setting',
                                                 horizon=horizon,
                                                 n_grid_points=n_grid_points,
-                                                grid_times_targets=grid_times_targets))
+                                                grid_times_targets=grid_times_targets,
+                                                iterative=iterative,
+                                                tolerance=tolerance))
 
     def target_meridian_transit_time(self, time, target, which='nearest',
-                                     grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
+                                     grid_times_targets=False, n_grid_points=None,
+                                     iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Calculate time at the transit of the meridian.
 
@@ -1269,6 +1334,18 @@ class Observer(object):
             crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
 
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
+
         Returns
         -------
         `~astropy.time.Time`
@@ -1293,10 +1370,13 @@ class Observer(object):
                                                 which=which,
                                                 n_grid_points=n_grid_points,
                                                 rise_set='setting',
-                                                grid_times_targets=grid_times_targets))
+                                                grid_times_targets=grid_times_targets,
+                                                iterative=iterative,
+                                                tolerance=tolerance))
 
     def target_meridian_antitransit_time(self, time, target, which='nearest',
-                                         grid_times_targets=False, n_grid_points=DEFAULT_NGRID):
+                                         grid_times_targets=False, n_grid_points=None,
+                                         iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Calculate time at the antitransit of the meridian.
 
@@ -1329,6 +1409,18 @@ class Observer(object):
             crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
 
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
+
         Returns
         -------
         `~astropy.time.Time`
@@ -1354,10 +1446,13 @@ class Observer(object):
                                                 which=which, antitransit=True,
                                                 rise_set='setting',
                                                 n_grid_points=n_grid_points,
-                                                grid_times_targets=grid_times_targets))
+                                                grid_times_targets=grid_times_targets,
+                                                iterative=iterative,
+                                                tolerance=tolerance))
 
     @u.quantity_input(horizon=u.deg)
-    def sun_rise_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=DEFAULT_NGRID):
+    def sun_rise_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=None,
+                      iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time of sunrise.
 
@@ -1387,6 +1482,18 @@ class Observer(object):
             crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields rise time precisions better than one minute.
 
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
+
         Returns
         -------
         `~astropy.time.Time`
@@ -1405,10 +1512,12 @@ class Observer(object):
         ISO: 2001-02-02 14:02:50.554, JD: 2451943.08531
         """
         return self.target_rise_time(time, get_sun(time), which, horizon,
-                                     n_grid_points=n_grid_points)
+                                     n_grid_points=n_grid_points, iterative=iterative,
+                                     tolerance=tolerance)
 
     @u.quantity_input(horizon=u.deg)
-    def sun_set_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=DEFAULT_NGRID):
+    def sun_set_time(self, time, which='nearest', horizon=0*u.degree, n_grid_points=None,
+                     iterative=True, tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time of sunset.
 
@@ -1438,6 +1547,18 @@ class Observer(object):
             crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields set time precisions better than one minute.
 
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
+
         Returns
         -------
         `~astropy.time.Time`
@@ -1456,9 +1577,11 @@ class Observer(object):
         ISO: 2001-02-04 00:35:42.102, JD: 2451944.52479
         """
         return self.target_set_time(time, get_sun(time), which, horizon,
-                                    n_grid_points=n_grid_points)
+                                    n_grid_points=n_grid_points, iterative=iterative,
+                                    tolerance=tolerance)
 
-    def noon(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def noon(self, time, which='nearest', n_grid_points=None, iterative=True,
+             tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at solar noon.
 
@@ -1479,15 +1602,29 @@ class Observer(object):
             crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
             yields noon time precisions better than one minute.
 
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
+
         Returns
         -------
         `~astropy.time.Time`
             Time at solar noon
         """
         return self.target_meridian_transit_time(time, get_sun(time), which,
-                                                 n_grid_points=n_grid_points)
+                                                 n_grid_points=n_grid_points, iterative=iterative,
+                                                 tolerance=tolerance)
 
-    def midnight(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def midnight(self, time, which='nearest', n_grid_points=None, iterative=True,
+                 tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at solar midnight.
 
@@ -1505,8 +1642,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields midnight time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1514,11 +1663,13 @@ class Observer(object):
             Time at solar midnight
         """
         return self.target_meridian_antitransit_time(time, get_sun(time), which,
-                                                     n_grid_points=n_grid_points)
+                                                     n_grid_points=n_grid_points, iterative=iterative,
+                                                     tolerance=tolerance)
 
     # Twilight convenience functions
 
-    def twilight_evening_astronomical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def twilight_evening_astronomical(self, time, which='nearest', n_grid_points=None, iterative=True,
+                                      tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at evening astronomical (-18 degree) twilight.
 
@@ -1536,8 +1687,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields twilight time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1545,9 +1708,11 @@ class Observer(object):
             Time of twilight
         """
         return self.sun_set_time(time, which, horizon=-18*u.degree,
-                                 n_grid_points=n_grid_points)
+                                 n_grid_points=n_grid_points, iterative=iterative,
+                                 tolerance=tolerance)
 
-    def twilight_evening_nautical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def twilight_evening_nautical(self, time, which='nearest', n_grid_points=None, iterative=True,
+                                  tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at evening nautical (-12 degree) twilight.
 
@@ -1565,8 +1730,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields twilight time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1574,9 +1751,11 @@ class Observer(object):
             Time of twilight
         """
         return self.sun_set_time(time, which, horizon=-12*u.degree,
-                                 n_grid_points=n_grid_points)
+                                 n_grid_points=n_grid_points, iterative=iterative,
+                                 tolerance=tolerance)
 
-    def twilight_evening_civil(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def twilight_evening_civil(self, time, which='nearest', n_grid_points=None, iterative=True,
+                               tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at evening civil (-6 degree) twilight.
 
@@ -1594,8 +1773,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields twilight time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1603,9 +1794,11 @@ class Observer(object):
             Time of twilight
         """
         return self.sun_set_time(time, which, horizon=-6*u.degree,
-                                 n_grid_points=n_grid_points)
+                                 n_grid_points=n_grid_points, iterative=iterative,
+                                 tolerance=tolerance)
 
-    def twilight_morning_astronomical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def twilight_morning_astronomical(self, time, which='nearest', n_grid_points=None, iterative=True,
+                                      tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at morning astronomical (-18 degree) twilight.
 
@@ -1623,8 +1816,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields twilight time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1632,9 +1837,11 @@ class Observer(object):
             Time of twilight
         """
         return self.sun_rise_time(time, which, horizon=-18*u.degree,
-                                  n_grid_points=n_grid_points)
+                                  n_grid_points=n_grid_points, iterative=iterative,
+                                  tolerance=tolerance)
 
-    def twilight_morning_nautical(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def twilight_morning_nautical(self, time, which='nearest', n_grid_points=None, iterative=True,
+                                  tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at morning nautical (-12 degree) twilight.
 
@@ -1652,8 +1859,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields twilight time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1661,9 +1880,11 @@ class Observer(object):
             Time of twilight
         """
         return self.sun_rise_time(time, which, horizon=-12*u.degree,
-                                  n_grid_points=n_grid_points)
+                                  n_grid_points=n_grid_points, iterative=True,
+                                  tolerance=tolerance)
 
-    def twilight_morning_civil(self, time, which='nearest', n_grid_points=DEFAULT_NGRID):
+    def twilight_morning_civil(self, time, which='nearest', n_grid_points=None, iterative=True,
+                               tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Time at morning civil (-6 degree) twilight.
 
@@ -1681,8 +1902,20 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields twilight time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
 
         Returns
         -------
@@ -1690,11 +1923,13 @@ class Observer(object):
             Time of sunset
         """
         return self.sun_rise_time(time, which, horizon=-6*u.degree,
-                                  n_grid_points=n_grid_points)
+                                  n_grid_points=n_grid_points, iterative=iterative,
+                                  tolerance=tolerance)
 
     # Moon-related methods.
 
-    def moon_rise_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=DEFAULT_NGRID):
+    def moon_rise_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=None, iterative=True,
+                       tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Returns the local moon rise time.
 
@@ -1721,13 +1956,27 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields rise time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
         """
         return self.target_rise_time(time, MoonFlag, which, horizon,
-                                     n_grid_points=n_grid_points)
+                                     n_grid_points=n_grid_points, iterative=iterative,
+                                     tolerance=tolerance)
 
-    def moon_set_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=DEFAULT_NGRID):
+    def moon_set_time(self, time, which='nearest', horizon=0*u.deg, n_grid_points=None, iterative=True,
+                      tolerance=DEFAULT_ITERATIVE_TOL):
         """
         Returns the local moon set time.
 
@@ -1754,11 +2003,24 @@ class Observer(object):
 
         n_grid_points : int (optional)
             The number of grid points on which to search for the horizon
-            crossings of the target over a 24 hour period, default is DEFAULT_NGRID which
-            yields set time precisions better than one minute.
+            crossings of the target over a 24 hour period. The default values
+            yield midnight time precisions better than one minute.
+
+        iterative : bool (optional)
+            If True, crossing times will be calculated via an interative method. This method
+            starts with a coarse grid, generates a new grid within the time range where
+            a transition is found, and continues this process until the final grid spacing
+            is less than `tolerance`. This method is a factor of several more efficient than
+            using a single large grid, but currently only supports single targets.
+
+        tolerance : `~astropy.units.Quantity` (optional), default = 10 minutes
+            The convergence tolerance for maximum grid spacing in iterative mode.
+            Linear interpolation within a 10 minute spacing is sufficient for precision
+            of better than a minute in most cases.
         """
         return self.target_set_time(time, MoonFlag, which, horizon,
-                                    n_grid_points=n_grid_points)
+                                    n_grid_points=n_grid_points, iterative=iterative,
+                                    tolerance=tolerance)
 
     def moon_illumination(self, time):
         """
