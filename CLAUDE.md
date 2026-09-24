@@ -22,6 +22,8 @@ tox -e build_docs                     # sphinx-build -W (warnings are errors)
 tox -e codestyle
 ```
 
+tox uses `tox-uv` (auto-provisioned via `requires` in `tox.ini`), so environments are built with uv and have no `pip`. The `oldestdeps` factor installs every dependency at the lowest version allowed (`uv_resolution = lowest`): direct lower bounds come from `pyproject.toml`, transitive ones from `oldestdeps-constraints.txt` (via `UV_CONSTRAINT`). If oldestdeps breaks, raise the relevant lower bound rather than adding exact pins.
+
 Test configuration notes (from `pyproject.toml`):
 - `filterwarnings = error`: **any new warning fails the test suite**. Fix the warning or add a narrowly scoped ignore.
 - Docs `.rst` files under `docs/` are doctested, so code examples in tutorials must actually run.

@@ -8,6 +8,14 @@
   versions of numpy (1.26.0) and matplotlib (3.7.3) were bumped to the oldest
   releases available for Python 3.12.
 
+- The ``oldestdeps`` test environment now uses ``tox-uv`` with uv's ``lowest``
+  resolution strategy, so it tests the lower bounds declared in
+  ``pyproject.toml`` (plus lower bounds for transitive dependencies in
+  ``oldestdeps-constraints.txt``) instead of hand-maintained pins. This
+  raised the minimum versions of pytz (2023.3.post1) and pytest (7.4.0), and
+  added minimum versions for astroquery (0.4.7), pytest-astropy (0.11.0) and
+  pytest-mpl (0.16.1). [#631]
+
 - Fix CI: bump the pinned ``OpenAstronomy/github-actions-workflows`` reusable
   workflow to v3.0.3 (fixes a Python-3.12-patch-version matching bug that was
   intermittently breaking the "Load tox environments" and wheel-building
