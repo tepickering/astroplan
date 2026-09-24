@@ -48,6 +48,7 @@ All public names are re-exported flat from `astroplan/__init__.py` via `from .mo
 
 - `.github/workflows/ci_tests.yml` calls the OpenAstronomy reusable tox workflow; each job is a tox env.
 - `astropy/astroplan`'s branch protection on `main` requires CI checks **by job name** (`ci_tests / <name>`). Renaming or removing a job leaves PRs blocked until a repo admin updates the required checks, so call out any renames in the PR.
+- Job names therefore describe roles, not versions ("oldest", "intermediate", "current" = `default_python`, and "latest" for devdeps, which moves to a new Python first). When bumping Python versions, change the tox envs and `default_python`, not the job names.
 
 ## Conventions
 
