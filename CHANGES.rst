@@ -1,6 +1,12 @@
 0.11 (unreleased)
 -----------------
 
+- Fix ``LocalTimeConstraint`` comparing its limits against UTC instead of the
+  observer's local time (or the timezone attached to ``min``/``max``). Results
+  now change for any observer not in UTC. The constraint also now works on
+  multidimensional time grids and no longer overwrites ``min`` when only
+  ``max`` is given. [#466]
+
 - Replace ``pytz`` with the standard library's ``zoneinfo``. ``pytz`` is no
   longer a dependency; ``tzdata`` is required instead so timezone data is
   available on all platforms. ``Observer`` now creates ``zoneinfo.ZoneInfo``
