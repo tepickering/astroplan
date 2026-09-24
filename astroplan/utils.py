@@ -133,25 +133,3 @@ def stride_array(arr, window_width):
     strided_arr = as_strided(arr, new_shape, (arr.strides[0], arr.strides[0]))
 
     return strided_arr
-
-
-def _open_shelve(shelffn, withclosing=False):
-    """
-    Opens a shelf file.  If ``withclosing`` is True, it will be opened with
-    closing, allowing use like:
-
-        with _open_shelve('somefile',True) as s:
-            ...
-
-    This workaround can be removed in favour of using shelve.open() directly
-    once support for Python <3.4 is dropped.
-    """
-    import shelve
-    import contextlib
-
-    shelf = shelve.open(shelffn, protocol=2)
-
-    if withclosing:
-        return contextlib.closing(shelf)
-    else:
-        return shelf
