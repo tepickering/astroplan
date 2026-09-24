@@ -63,6 +63,10 @@ jobs:
           posargs: --remote-data=any
           coverage: codecov
 
+        - name: Python 3.14 image comparison tests
+          linux: py314-test-image
+          artifact-path: results/
+
   allowed_failures:
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
     with:

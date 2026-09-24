@@ -61,3 +61,6 @@ astroplan/_version.py
 # Written by tox-uv and by the tox coverage environments
 .venv
 coverage.xml
+
+# pytest-mpl image comparison results (tox image environments)
+results/
