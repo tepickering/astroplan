@@ -80,5 +80,5 @@ jobs:
       default_python: '3.14'
       envs: |
         - name: (Allowed Failure) Linux - latest Python, dev dependencies, remote data
-          linux: py314-test-devdeps
+          linux: py315-test-devdeps
           posargs: --remote-data=any --verbose
