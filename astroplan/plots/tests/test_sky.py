@@ -17,7 +17,7 @@ except ImportError:
 # https://github.com/astropy/astroplan/issues/65
 # https://github.com/astropy/astroplan/issues/74
 @pytest.mark.skipif('not HAS_MATPLOTLIB')
-@pytest.mark.mpl_image_compare
+@pytest.mark.mpl_image_compare(baseline_dir='baseline_images')
 def test_image_example():
     import matplotlib.pyplot as plt
 
@@ -30,7 +30,7 @@ def test_image_example():
 
 @pytest.mark.remote_data
 @pytest.mark.skipif('not HAS_MATPLOTLIB')
-@pytest.mark.mpl_image_compare
+@pytest.mark.mpl_image_compare(baseline_dir='baseline_images')
 def test_timezone():
     import datetime
 

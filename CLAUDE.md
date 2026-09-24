@@ -26,7 +26,7 @@ Test configuration notes (from `pyproject.toml`):
 - `filterwarnings = error`: **any new warning fails the test suite**. Fix the warning or add a narrowly scoped ignore.
 - Docs `.rst` files under `docs/` are doctested, so code examples in tutorials must actually run.
 - `xfail_strict = true`.
-- Plot tests in `astroplan/plots/tests/` use `@pytest.mark.mpl_image_compare` with baselines in `baseline_images/`; the images are only compared when pytest is run with `--mpl`.
+- Plot tests in `astroplan/plots/tests/` use `@pytest.mark.mpl_image_compare` with baselines in `baseline_images/`; the images are only compared when pytest is run with `--mpl`. Regenerate with `pytest <test> --mpl-generate-path=astroplan/plots/tests/baseline_images` and visually check the result before committing.
 - Tests needing the network (e.g. `FixedTarget.from_name`, `Observer.at_site` for non-builtin sites) must be marked `@pytest.mark.remote_data`.
 
 ## Architecture
