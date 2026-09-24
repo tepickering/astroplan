@@ -33,8 +33,8 @@ def test_image_example():
 @pytest.mark.mpl_image_compare(baseline_dir='baseline_images')
 def test_timezone():
     import datetime
+    import zoneinfo
 
-    import pytz
     from astropy import coordinates
     from astropy import units as u
 
@@ -44,7 +44,7 @@ def test_timezone():
     betelgeuse = coordinates.SkyCoord(88.79293899*u.deg, 7.407064*u.deg, frame='icrs')
     observer = Observer(coordinates.EarthLocation.of_site('subaru'))
     # Eastern time... because you're remote-operating Subaru from home...?
-    now_ET = pytz.timezone('US/Eastern').localize(datetime.datetime.now())
+    now_ET = datetime.datetime.now(zoneinfo.ZoneInfo('US/Eastern'))
 
     plot_airmass(betelgeuse, observer, now_ET, use_local_tz=True)
 

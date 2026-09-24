@@ -1,6 +1,13 @@
 0.11 (unreleased)
 -----------------
 
+- Replace ``pytz`` with the standard library's ``zoneinfo``. ``pytz`` is no
+  longer a dependency; ``tzdata`` is required instead so timezone data is
+  available on all platforms. ``Observer`` now creates ``zoneinfo.ZoneInfo``
+  objects when ``timezone`` is given as a string, so ``Observer.timezone`` no
+  longer has pytz-specific methods such as ``localize``. Timezones created with
+  ``pytz`` are still accepted. [#601]
+
 - Minimum Python version is now 3.11. Also bumped minversion
   of dependencies. [#605]
 
@@ -12,7 +19,7 @@
   resolution strategy, so it tests the lower bounds declared in
   ``pyproject.toml`` (plus lower bounds for transitive dependencies in
   ``oldestdeps-constraints.txt``) instead of hand-maintained pins. This
-  raised the minimum versions of pytz (2023.3.post1) and pytest (7.4.0), and
+  raised the minimum version of pytest (7.4.0), and
   added minimum versions for astroquery (0.4.7), pytest-astropy (0.11.0) and
   pytest-mpl (0.16.1). [#631]
 
