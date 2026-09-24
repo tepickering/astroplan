@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-astroplan is an Astropy-affiliated observation-planning package (rise/set times, observability constraints, scheduling, plotting). Python >= 3.11; core deps are numpy, astropy (>= 6.0), and pytz. matplotlib and astroquery are optional (`[all]` extra).
+astroplan is an Astropy-affiliated observation-planning package (rise/set times, observability constraints, scheduling, plotting). Python >= 3.12; core deps are numpy, astropy (>= 6.0), and pytz. matplotlib and astroquery are optional (`[all]` extra).
 
 ## Commands
 
@@ -17,7 +17,7 @@ pytest --remote-data=any              # also run @pytest.mark.remote_data tests 
 
 flake8 astroplan --count              # lint: max line length 100, __init__.py excluded (.flake8)
 
-tox -e py312-test-alldeps             # CI-style run (runs from .tmp/, installs package, MPLBACKEND=agg)
+tox -e py314-test-alldeps             # CI-style run (runs from .tmp/, installs package, MPLBACKEND=agg)
 tox -e build_docs                     # sphinx-build -W (warnings are errors)
 tox -e codestyle
 ```

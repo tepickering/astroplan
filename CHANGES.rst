@@ -4,6 +4,10 @@
 - Minimum Python version is now 3.11. Also bumped minversion
   of dependencies. [#605]
 
+- Minimum Python version is now 3.12, and Python 3.14 is now tested. Minimum
+  versions of numpy (1.26.0) and matplotlib (3.7.3) were bumped to the oldest
+  releases available for Python 3.12.
+
 - Fix CI: bump the pinned ``OpenAstronomy/github-actions-workflows`` reusable
   workflow to v3.0.3 (fixes a Python-3.12-patch-version matching bug that was
   intermittently breaking the "Load tox environments" and wheel-building
