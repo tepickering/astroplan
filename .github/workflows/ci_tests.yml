@@ -28,7 +28,8 @@ jobs:
   # Job names are required status checks on main, so they describe roles
   # ("oldest"/"current"/"latest" Python) rather than versions. When bumping
   # Python versions, change the tox envs below and default_python, not the names.
-  # "current" is default_python; "latest" (devdeps) moves to a new Python first.
+  # "current" is default_python; "latest" (devdeps) moves to a new Python first;
+  # "threaded" is the free-threaded build of the current Python.
   #
   # Github Actions supports ubuntu, windows, and macos virtual environments:
   # https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners
@@ -55,6 +56,9 @@ jobs:
 
         - name: Linux - oldest Python, oldest dependencies
           linux: py312-test-oldestdeps
+
+        - name: Linux - threaded Python, base dependencies
+          linux: py314t-test
 
         - name: macOS - current Python, base dependencies
           macos: py314-test
