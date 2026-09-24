@@ -18,15 +18,16 @@ pytest --remote-data=any              # also run @pytest.mark.remote_data tests 
 flake8 astroplan --count              # lint: max line length 100, __init__.py excluded (.flake8)
 
 tox -e py314-test-alldeps             # CI-style run (runs from .tmp/, installs package, MPLBACKEND=agg)
-tox -e build_docs                     # sphinx-build -W (warnings are errors)
+tox -e py314-test-image               # image comparison tests only (--mpl, pinned matplotlib)
+tox -e build_docs                     # sphinx-build -W (warnings are errors); needs graphviz `dot`
 tox -e codestyle
 ```
 
-tox uses `tox-uv` (auto-provisioned via `requires` in `tox.ini`), so environments are built with uv and have no `pip`. The `oldestdeps` factor installs every dependency at the lowest version allowed (`uv_resolution = lowest`): direct lower bounds come from `pyproject.toml`, transitive ones from `oldestdeps-constraints.txt` (via `UV_CONSTRAINT`). If oldestdeps breaks, raise the relevant lower bound rather than adding exact pins.
+tox uses `tox-uv` (auto-provisioned via `requires` in `tox.ini`), so environments are built with uv and have no `pip`. The `oldestdeps` factor installs every dependency at the lowest version allowed (`uv_resolution = lowest`): direct lower bounds come from `pyproject.toml`, transitive ones from `oldestdeps-constraints.txt` (via `UV_CONSTRAINT`). If oldestdeps breaks, raise the relevant lower bound rather than adding exact pins. Derive transitive bounds from a cross-platform resolution (`uv pip compile --universal --resolution lowest ...`): some dependencies (e.g. keyring's `secretstorage`/`cryptography`) only install on Linux or Windows, and a single-platform resolution misses them.
 
 Test configuration notes (from `pyproject.toml`):
 - `filterwarnings = error`: **any new warning fails the test suite**. Fix the warning or add a narrowly scoped ignore.
-- Docs `.rst` files under `docs/` are doctested, so code examples in tutorials must actually run.
+- Docs `.rst` files under `docs/` are doctested, so code examples in tutorials must actually run. Exceptions: files marked `.. doctest-skip-all` (e.g. `docs/tutorials/periodic.rst`, whose printed outputs can go stale) and `.. plot::` directives, which only run in `tox -e build_docs`.
 - `xfail_strict = true`.
 - Plot tests in `astroplan/plots/tests/` use `@pytest.mark.mpl_image_compare` with baselines in `baseline_images/`; the images are only compared when pytest is run with `--mpl` (CI does this in the `py314-test-image` tox env, which pins matplotlib to the version the baselines were made with; failures upload a `results/` diff summary). Regenerate with `pytest <test> --mpl-generate-path=astroplan/plots/tests/baseline_images` using that pinned matplotlib, visually check the result before committing, and bump the pin in `tox.ini` whenever baselines are regenerated with a newer matplotlib.
 - Tests needing the network (e.g. `FixedTarget.from_name`, `Observer.at_site` for non-builtin sites) must be marked `@pytest.mark.remote_data`.
@@ -42,6 +43,11 @@ All public names are re-exported flat from `astroplan/__init__.py` via `from .mo
 - **`periodic.py`**: `PeriodicEvent` / `EclipsingSystem` for transits/eclipses; used by `PhaseConstraint`, `PrimaryEclipseConstraint`, `SecondaryEclipseConstraint`, and `is_event_observable`.
 - **`moon.py`**: moon phase angle / illumination.
 - **`plots/`**: matplotlib-based `plot_airmass`, `plot_altitude`, `plot_sky`, `plot_finder_image` (astroquery/SkyView), etc. matplotlib is imported lazily so the core package works without it.
+
+## CI
+
+- `.github/workflows/ci_tests.yml` calls the OpenAstronomy reusable tox workflow; each job is a tox env.
+- `astropy/astroplan`'s branch protection on `main` requires CI checks **by job name** (`ci_tests / <name>`). Renaming or removing a job leaves PRs blocked until a repo admin updates the required checks, so call out any renames in the PR.
 
 ## Conventions
 
