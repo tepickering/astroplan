@@ -9,7 +9,7 @@ astroplan is an Astropy-affiliated observation-planning package (rise/set times,
 ## Commands
 
 ```bash
-pip install -e ".[test,all]"         # dev install (version comes from setuptools_scm -> astroplan/_version.py)
+pip install -e ".[dev]"               # dev install: [all] + [test] + tox/tox-uv (version comes from setuptools_scm -> astroplan/_version.py)
 
 pytest astroplan docs                 # tests + RST doctests (pyproject sets --doctest-rst)
 pytest astroplan/tests/test_observer.py::test_sunrise_sunset_equator   # single test

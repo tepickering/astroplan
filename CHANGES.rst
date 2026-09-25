@@ -29,6 +29,9 @@
   added minimum versions for astroquery (0.4.7), pytest-astropy (0.11.0) and
   pytest-mpl (0.16.1). [#631]
 
+- Add a ``dev`` extra that installs the ``all`` and ``test`` extras plus
+  ``tox`` and ``tox-uv``, for running the test environments locally. [#641]
+
 - Fix CI: bump the pinned ``OpenAstronomy/github-actions-workflows`` reusable
   workflow to v3.0.3 (fixes a Python-3.12-patch-version matching bug that was
   intermittently breaking the "Load tox environments" and wheel-building

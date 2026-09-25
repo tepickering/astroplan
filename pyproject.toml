@@ -49,6 +49,11 @@ docs = [
 plotting = [
     "astroplan[all]"
 ]
+dev = [
+    "astroplan[all,test]",
+    "tox>=4",
+    "tox-uv>=1.35"
+]
 
 [project.readme]
 file = "README.rst"
